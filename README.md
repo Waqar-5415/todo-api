@@ -68,3 +68,5 @@ about what happened to your data and why. >>
 
 **After the rematch, what changed:**
 << one sentence >>
+The curl output from Step 12 (the 201 Created one)
+A sentence or two for the "mortality experiment" section (restart your server, run curl.exe -i http://localhost:8000/tasks, notice your added tasks are gone — write why: it's all in-memory, nothing saved to disk)
