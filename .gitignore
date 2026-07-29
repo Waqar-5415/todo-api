@@ -2,3 +2,6 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+tasks.db
+.ipynb_checkpoints/
+Untitled.ipynb
