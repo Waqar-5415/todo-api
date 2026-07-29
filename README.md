@@ -70,3 +70,29 @@ about what happened to your data and why. >>
 << one sentence >>
 The curl output from Step 12 (the 201 Created one)
 A sentence or two for the "mortality experiment" section (restart your server, run curl.exe -i http://localhost:8000/tasks, notice your added tasks are gone — write why: it's all in-memory, nothing saved to disk)
+## Database
+
+This project uses **SQLite** for storage.
+
+**Why SQLite:** it's a single file (`tasks.db`), needs no separate server or
+install, and — unlike the in-memory version from Assignment 1 — data survives
+a restart.
+
+**Where it lives:** `tasks.db` in the project root. It's auto-created on first
+run and is git-ignored, so every fresh clone starts with a clean database.
+
+**Run it:**
+\`\`\`
+uvicorn main:app --reload
+\`\`\`
+
+**Example SQL query** (run by hand in DB Browser, Stage 4):
+\`\`\`sql
+SELECT COUNT(*) FROM tasks;
+\`\`\`
+Returned `4` before running `UPDATE tasks SET done = 1;` followed by
+`DELETE FROM tasks WHERE done = 1;` — and `0` immediately after, proving
+DB Browser and the API share the exact same file with no syncing needed.
+
+**Screenshot:**
+![tasks.db in DB Browser](screenshot.png)
