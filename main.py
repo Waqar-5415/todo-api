@@ -1,7 +1,7 @@
 """
-Task API — a small in-memory CRUD API built with FastAPI.
+Task API — a SQLite-backed CRUD API built with FastAPI.
 
-FlyRank Internship · Backend Track · W2 · A1 — Build your first CRUD API
+FlyRank Internship · Backend Track · W3 · A2 — Connecting your CRUD to the database
 
 Run with:
     uvicorn main:app --reload
@@ -11,18 +11,23 @@ Then open:
     http://localhost:8000/health    -> health check
     http://localhost:8000/docs      -> Swagger UI
 """
-
 from fastapi import FastAPI, HTTPException, Response, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, field_validator
 from typing import Optional, List
+from database import get_connection, init_db
 
 app = FastAPI(
     title="Task API",
     version="1.0",
-    description="A tiny in-memory to-do list API — the CRUD warm-up project."
+    description="A tiny SQLite-backed to-do list API."
 )
+
+
+@app.on_event("startup")
+def on_startup():
+    init_db()
 
 
 @app.exception_handler(RequestValidationError)
@@ -44,17 +49,6 @@ async def http_exception_handler(request: Request, exc: HTTPException):
     spec asks for {"error": "..."} instead, so we normalize it here.
     """
     return JSONResponse(status_code=exc.status_code, content={"error": exc.detail})
-
-# ---------------------------------------------------------------------------
-# "Database" — just a list in memory. Restart the server and it resets.
-# ---------------------------------------------------------------------------
-
-tasks = [
-    {"id": 1, "title": "Buy milk", "done": False},
-    {"id": 2, "title": "Read FastAPI docs", "done": True},
-    {"id": 3, "title": "Build the Task API", "done": False},
-]
-next_id = 4  # simple counter for new task ids
 
 
 # ---------------------------------------------------------------------------
@@ -107,109 +101,81 @@ def health_check():
 
 
 # ---------------------------------------------------------------------------
-# Stage 2 — Read
+# Read
 # ---------------------------------------------------------------------------
 
-def find_task(task_id: int):
-    return next((t for t in tasks if t["id"] == task_id), None)
-
-
-@app.get("/tasks", response_model=List[Task], summary="List tasks")
-def list_tasks(done: Optional[bool] = None, search: Optional[str] = None,
-                limit: Optional[int] = None, offset: int = 0):
-    """
-    Returns all tasks.
-
-    Optional query parameters (stretch goals):
-      - done: filter by completion status (?done=true)
-      - search: filter by a word in the title (?search=milk)
-      - limit / offset: pagination (?limit=2&offset=2)
-    """
-    result = tasks
-
-    if done is not None:
-        result = [t for t in result if t["done"] == done]
-
-    if search:
-        result = [t for t in result if search.lower() in t["title"].lower()]
-
-    if offset:
-        result = result[offset:]
-    if limit is not None:
-        result = result[:limit]
-
-    return result
+@app.get("/tasks", response_model=List[Task], summary="List all tasks")
+def list_tasks():
+    conn = get_connection()
+    rows = conn.execute("SELECT * FROM tasks").fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
 
 
 @app.get("/tasks/{task_id}", response_model=Task, summary="Get a single task")
 def get_task(task_id: int):
-    task = find_task(task_id)
-    if task is None:
+    conn = get_connection()
+    row = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
+    conn.close()
+    if row is None:
         raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
-    return task
+    return dict(row)
 
 
 # ---------------------------------------------------------------------------
-# Stage 3 — Create
+# Create
 # ---------------------------------------------------------------------------
 
 @app.post("/tasks", response_model=Task, status_code=201, summary="Create a task")
 def create_task(payload: TaskCreate):
-    global next_id
-    new_task = {"id": next_id, "title": payload.title.strip(), "done": False}
-    tasks.append(new_task)
-    next_id += 1
-    return new_task
+    conn = get_connection()
+    cur = conn.execute(
+        "INSERT INTO tasks (title, done) VALUES (?, ?)",
+        (payload.title.strip(), 0)
+    )
+    conn.commit()
+    new_id = cur.lastrowid
+    row = conn.execute("SELECT * FROM tasks WHERE id = ?", (new_id,)).fetchone()
+    conn.close()
+    return dict(row)
 
 
 # ---------------------------------------------------------------------------
-# Stage 4 — Update & Delete
+# Update & Delete
 # ---------------------------------------------------------------------------
 
 @app.put("/tasks/{task_id}", response_model=Task, summary="Update a task")
 def update_task(task_id: int, payload: TaskUpdate):
-    task = find_task(task_id)
-    if task is None:
-        raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
-
     if payload.title is None and payload.done is None:
         raise HTTPException(status_code=400, detail="Provide at least one of: title, done")
 
-    if payload.title is not None:
-        task["title"] = payload.title.strip()
-    if payload.done is not None:
-        task["done"] = payload.done
+    conn = get_connection()
+    row = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
+    if row is None:
+        conn.close()
+        raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
 
-    return task
+    new_title = payload.title.strip() if payload.title is not None else row["title"]
+    new_done = int(payload.done) if payload.done is not None else row["done"]
+
+    conn.execute(
+        "UPDATE tasks SET title = ?, done = ? WHERE id = ?",
+        (new_title, new_done, task_id)
+    )
+    conn.commit()
+    updated = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
+    conn.close()
+    return dict(updated)
 
 
 @app.delete("/tasks/{task_id}", status_code=204, summary="Delete a task")
 def delete_task(task_id: int):
-    task = find_task(task_id)
-    if task is None:
+    conn = get_connection()
+    row = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
+    if row is None:
+        conn.close()
         raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
-    tasks.remove(task)
+    conn.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
+    conn.commit()
+    conn.close()
     return Response(status_code=204)
-
-
-# ---------------------------------------------------------------------------
-# Extras (optional stretch goals)
-# ---------------------------------------------------------------------------
-
-@app.get("/stats", summary="Task stats")
-def get_stats():
-    total = len(tasks)
-    done_count = sum(1 for t in tasks if t["done"])
-    return {"total": total, "done": done_count, "open": total - done_count}
-
-
-@app.post("/reset", summary="Reset to the 3 example tasks")
-def reset_tasks():
-    global tasks, next_id
-    tasks = [
-        {"id": 1, "title": "Buy milk", "done": False},
-        {"id": 2, "title": "Read FastAPI docs", "done": True},
-        {"id": 3, "title": "Build the Task API", "done": False},
-    ]
-    next_id = 4
-    return {"message": "Tasks reset to defaults", "tasks": tasks}

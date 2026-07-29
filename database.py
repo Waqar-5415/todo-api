@@ -11,22 +11,27 @@ def get_connection():
 
 def init_db():
     conn = get_connection()
-    conn.execute("""
+    cursor = conn.cursor()
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS tasks (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT NOT NULL,
-            done BOOLEAN NOT NULL DEFAULT 0
+            done INTEGER NOT NULL DEFAULT 0
         )
     """)
-    count = conn.execute("SELECT COUNT(*) FROM tasks").fetchone()[0]
+
+    count = cursor.execute("SELECT COUNT(*) FROM tasks").fetchone()[0]
+
     if count == 0:
-        conn.executemany(
+        cursor.executemany(
             "INSERT INTO tasks (title, done) VALUES (?, ?)",
             [
                 ("Buy milk", 0),
                 ("Read FastAPI docs", 1),
                 ("Build the Task API", 0),
-            ]
+            ],
         )
+
     conn.commit()
     conn.close()
