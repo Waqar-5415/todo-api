@@ -1,10 +1,10 @@
 """
-Task API — a SQLite-backed CRUD API built with FastAPI.
+Task API — a Postgres-backed CRUD API built with FastAPI.
 
-FlyRank Internship · Backend Track · W3 · A2 — Connecting your CRUD to the database
+FlyRank Internship · Backend Track · W3 · A3 — Containerize your stack
 
 Run with:
-    uvicorn main:app --reload
+    docker compose up
 
 Then open:
     http://localhost:8000/          -> API info
@@ -21,7 +21,7 @@ from database import get_connection, init_db
 app = FastAPI(
     title="Task API",
     version="1.0",
-    description="A tiny SQLite-backed to-do list API."
+    description="A tiny Postgres-backed to-do list API."
 )
 
 
@@ -32,11 +32,6 @@ def on_startup():
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    """
-    The assignment asks for 400 Bad Request on invalid input.
-    FastAPI's default is 422 — we override it here so POST/PUT with a
-    missing or empty title correctly return 400.
-    """
     first_error = exc.errors()[0]
     message = first_error.get("msg", "Invalid request body")
     return JSONResponse(status_code=400, content={"error": message})
@@ -44,10 +39,6 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
-    """
-    FastAPI's default error body is {"detail": "..."}. The assignment
-    spec asks for {"error": "..."} instead, so we normalize it here.
-    """
     return JSONResponse(status_code=exc.status_code, content={"error": exc.detail})
 
 
@@ -85,18 +76,16 @@ class Task(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Stage 1 — root and health
+# Root and health
 # ---------------------------------------------------------------------------
 
 @app.get("/", summary="API info")
 def read_root():
-    """Describes what this API is and what it offers."""
     return {"name": "Task API", "version": "1.0", "endpoints": ["/tasks"]}
 
 
 @app.get("/health", summary="Health check")
 def health_check():
-    """Used to confirm the server is alive."""
     return {"status": "ok"}
 
 
@@ -129,13 +118,11 @@ def get_task(task_id: int):
 @app.post("/tasks", response_model=Task, status_code=201, summary="Create a task")
 def create_task(payload: TaskCreate):
     conn = get_connection()
-    cur = conn.execute(
-        "INSERT INTO tasks (title, done) VALUES (%s, %s)",
-        (payload.title.strip(), 0)
-    )
+    row = conn.execute(
+        "INSERT INTO tasks (title, done) VALUES (%s, %s) RETURNING *",
+        (payload.title.strip(), False)
+    ).fetchone()
     conn.commit()
-    new_id = cur.lastrowid
-    row = conn.execute("SELECT * FROM tasks WHERE id = %s", (new_id,)).fetchone()
     conn.close()
     return dict(row)
 
@@ -156,7 +143,7 @@ def update_task(task_id: int, payload: TaskUpdate):
         raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
 
     new_title = payload.title.strip() if payload.title is not None else row["title"]
-    new_done = int(payload.done) if payload.done is not None else row["done"]
+    new_done = payload.done if payload.done is not None else row["done"]
 
     conn.execute(
         "UPDATE tasks SET title = %s, done = %s WHERE id = %s",
