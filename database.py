@@ -1,37 +1,29 @@
-import sqlite3
+import os
+import psycopg
+from psycopg.rows import dict_row
+from dotenv import load_dotenv
 
-DB_FILE = "tasks.db"
-
+load_dotenv()
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 def get_connection():
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
-    return conn
-
+    return psycopg.connect(DATABASE_URL, row_factory=dict_row)
 
 def init_db():
     conn = get_connection()
-    cursor = conn.cursor()
-
-    cursor.execute("""
+    cur = conn.cursor()
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS tasks (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             title TEXT NOT NULL,
-            done INTEGER NOT NULL DEFAULT 0
+            done BOOLEAN NOT NULL DEFAULT FALSE
         )
     """)
-
-    count = cursor.execute("SELECT COUNT(*) FROM tasks").fetchone()[0]
-
+    count = cur.execute("SELECT COUNT(*) FROM tasks").fetchone()["count"]
     if count == 0:
-        cursor.executemany(
-            "INSERT INTO tasks (title, done) VALUES (?, ?)",
-            [
-                ("Buy milk", 0),
-                ("Read FastAPI docs", 1),
-                ("Build the Task API", 0),
-            ],
+        cur.executemany(
+            "INSERT INTO tasks (title, done) VALUES (%s, %s)",
+            [("Buy milk", False), ("Read FastAPI docs", True), ("Build the Task API", False)],
         )
-
     conn.commit()
     conn.close()

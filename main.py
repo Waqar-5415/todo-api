@@ -115,7 +115,7 @@ def list_tasks():
 @app.get("/tasks/{task_id}", response_model=Task, summary="Get a single task")
 def get_task(task_id: int):
     conn = get_connection()
-    row = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
+    row = conn.execute("SELECT * FROM tasks WHERE id = %s", (task_id,)).fetchone()
     conn.close()
     if row is None:
         raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
@@ -130,12 +130,12 @@ def get_task(task_id: int):
 def create_task(payload: TaskCreate):
     conn = get_connection()
     cur = conn.execute(
-        "INSERT INTO tasks (title, done) VALUES (?, ?)",
+        "INSERT INTO tasks (title, done) VALUES (%s, %s)",
         (payload.title.strip(), 0)
     )
     conn.commit()
     new_id = cur.lastrowid
-    row = conn.execute("SELECT * FROM tasks WHERE id = ?", (new_id,)).fetchone()
+    row = conn.execute("SELECT * FROM tasks WHERE id = %s", (new_id,)).fetchone()
     conn.close()
     return dict(row)
 
@@ -150,7 +150,7 @@ def update_task(task_id: int, payload: TaskUpdate):
         raise HTTPException(status_code=400, detail="Provide at least one of: title, done")
 
     conn = get_connection()
-    row = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
+    row = conn.execute("SELECT * FROM tasks WHERE id = %s", (task_id,)).fetchone()
     if row is None:
         conn.close()
         raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
@@ -159,11 +159,11 @@ def update_task(task_id: int, payload: TaskUpdate):
     new_done = int(payload.done) if payload.done is not None else row["done"]
 
     conn.execute(
-        "UPDATE tasks SET title = ?, done = ? WHERE id = ?",
+        "UPDATE tasks SET title = %s, done = %s WHERE id = %s",
         (new_title, new_done, task_id)
     )
     conn.commit()
-    updated = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
+    updated = conn.execute("SELECT * FROM tasks WHERE id = %s", (task_id,)).fetchone()
     conn.close()
     return dict(updated)
 
@@ -171,11 +171,11 @@ def update_task(task_id: int, payload: TaskUpdate):
 @app.delete("/tasks/{task_id}", status_code=204, summary="Delete a task")
 def delete_task(task_id: int):
     conn = get_connection()
-    row = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
+    row = conn.execute("SELECT * FROM tasks WHERE id = %s", (task_id,)).fetchone()
     if row is None:
         conn.close()
         raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
-    conn.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
+    conn.execute("DELETE FROM tasks WHERE id = %s", (task_id,))
     conn.commit()
     conn.close()
     return Response(status_code=204)

@@ -1,0 +1,12 @@
+[33mca9b0a9[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m Stage 5: database documentation
+[33md29f838[m Stage 5: database documentation
+[33m1c0f6d0[m Stage 2: insert into database (already implemented, verified via checkpoint)
+[33mabae68c[m Add .gitignore entries, untrack tasks.db and stray notebook files
+[33m6aa5fb1[m Stage 1: database read endpoints
+[33m7ee0d89[m Stage 0: create SQLite database
+[33mc23aed7[m Fill in README with curl output and mortality experiment notes
+[33m96bbe69[m Add sample JSON payload for testing POST requests
+[33m03a6067[m Stage 6: add README with run instructions and endpoint table
+[33m98cda1c[m Stage 5: Swagger UI tested and screenshot added
+[33m59e4ff5[m Build full CRUD Task API with FastAPI (stages 0-4)
+[33m204e493[m Stage 0-1: hello server, root and health endpoints
