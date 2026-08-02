@@ -5,3 +5,4 @@ venv/
 tasks.db
 .ipynb_checkpoints/
 Untitled.ipynb
+.env
